@@ -380,7 +380,7 @@ See [SIMULATOR_GUIDE.md](SIMULATOR_GUIDE.md) for setup instructions.
 
 ---
 
-**Ready to start?** 🚀
+**Ready to start?** 🚀.
 
 1. Start with the **[SIMULATOR_GUIDE.md](SIMULATOR_GUIDE.md)** to test without hardware
 2. Once comfortable, **flash the firmware** to your ESP32-S3
@@ -389,5 +389,6 @@ See [SIMULATOR_GUIDE.md](SIMULATOR_GUIDE.md) for setup instructions.
 
 Questions? Review the firmware comments or check the troubleshooting section above.
 
-#   V a c c u m - R o b o t  
+#   V a c c u m - R o b o t 
+ 
  
