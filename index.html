@@ -1,0 +1,1713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0e27">
+  <link rel="manifest" href="manifest.json">
+  <title>VacBot Control</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0a0e27 100%);
+      background-attachment: fixed;
+      color: #ffffff;
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    header {
+      background: rgba(10, 14, 39, 0.8);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(0, 212, 170, 0.1);
+      padding: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-logo {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: -1px;
+      background: linear-gradient(135deg, #00d4aa, #00f0d9);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: #e84545;
+      box-shadow: 0 0 20px rgba(232, 69, 69, 0.6);
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot.online {
+      background-color: #00d4aa;
+      box-shadow: 0 0 20px rgba(0, 212, 170, 0.6);
+      animation: none;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .header-settings {
+      background: rgba(0, 212, 170, 0.15);
+      border: 1px solid rgba(0, 212, 170, 0.3);
+      color: #00d4aa;
+      cursor: pointer;
+      font-size: 22px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .header-settings:hover {
+      background: rgba(0, 212, 170, 0.25);
+      transform: scale(1.1) rotate(20deg);
+    }
+
+    .mode-bar {
+      position: sticky;
+      top: 70px;
+      background: rgba(10, 14, 39, 0.6);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(0, 212, 170, 0.1);
+      padding: 16px 24px;
+      display: flex;
+      gap: 12px;
+      z-index: 99;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 14px 20px;
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      color: rgba(255, 255, 255, 0.6);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .mode-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .mode-btn.active {
+      border-color: #00d4aa;
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.25), rgba(0, 240, 217, 0.1));
+      color: #00d4aa;
+      box-shadow: 0 0 25px rgba(0, 212, 170, 0.4);
+    }
+
+    .mode-btn.active.auto {
+      border-color: #a78bfa;
+      background: linear-gradient(135deg, rgba(167, 139, 250, 0.25), rgba(167, 139, 250, 0.1));
+      color: #a78bfa;
+      box-shadow: 0 0 25px rgba(167, 139, 250, 0.4);
+    }
+
+    .container {
+      padding: 28px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    .grid {
+      display: grid;
+      gap: 28px;
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 768px) {
+      .grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .panel-log {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (min-width: 1200px) {
+      .grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      .panel-auto {
+        grid-column: 2 / 3;
+        grid-row: 2;
+      }
+      .panel-log {
+        grid-column: 1 / -1;
+      }
+    }
+
+    .panel {
+      padding: 28px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      transition: all 0.3s ease;
+    }
+
+    .panel:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .panel-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 24px;
+      color: #ffffff;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      opacity: 0.95;
+    }
+
+    /* Battery Gauge */
+    .battery-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .battery-gauge-wrapper {
+      position: relative;
+      width: 220px;
+      height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .battery-gauge {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 0 40px rgba(0, 212, 170, 0.25));
+    }
+
+    .gauge-background {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.1);
+      stroke-width: 14;
+    }
+
+    .gauge-progress {
+      fill: none;
+      stroke: url(#batteryGradient);
+      stroke-width: 14;
+      stroke-linecap: round;
+      stroke-dasharray: 565;
+      stroke-dashoffset: 565;
+      transform-origin: 50% 50%;
+      transform: rotate(-90deg);
+      transition: stroke-dashoffset 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+      filter: drop-shadow(0 0 15px rgba(0, 212, 170, 0.4));
+    }
+
+    .gauge-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    .battery-percent {
+      font-size: 52px;
+      font-weight: 900;
+      color: #00d4aa;
+      line-height: 1;
+    }
+
+    .battery-label {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.6);
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      margin-top: 6px;
+      font-weight: 600;
+    }
+
+    .battery-voltage {
+      font-size: 20px;
+      color: rgba(0, 212, 170, 0.9);
+      margin-top: 10px;
+      font-weight: 700;
+    }
+
+    .battery-health {
+      display: inline-block;
+      padding: 10px 18px;
+      border-radius: 24px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-top: 18px;
+      background: rgba(0, 212, 170, 0.15);
+      color: #00d4aa;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      border: 1px solid rgba(0, 212, 170, 0.4);
+    }
+
+    .battery-health.fair {
+      background: rgba(245, 166, 35, 0.15);
+      color: #f5a623;
+      border-color: rgba(245, 166, 35, 0.4);
+    }
+
+    .battery-health.low {
+      background: rgba(232, 69, 69, 0.15);
+      color: #e84545;
+      border-color: rgba(232, 69, 69, 0.4);
+    }
+
+    .battery-health.critical {
+      background: rgba(232, 69, 69, 0.25);
+      color: #e84545;
+      border-color: #e84545;
+      animation: critical-pulse 0.5s infinite;
+    }
+
+    @keyframes critical-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .battery-critical-alert {
+      background: linear-gradient(135deg, rgba(232, 69, 69, 0.2), rgba(232, 69, 69, 0.1));
+      border: 1px solid rgba(232, 69, 69, 0.5);
+      color: #e84545;
+      padding: 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 16px;
+      display: none;
+      text-align: center;
+      backdrop-filter: blur(10px);
+    }
+
+    .battery-critical-alert.show {
+      display: block;
+    }
+
+    /* Movement D-Pad */
+    .movement-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .dpad-container {
+      display: grid;
+      grid-template-columns: repeat(3, 90px);
+      gap: 14px;
+    }
+
+    .dpad-btn {
+      width: 90px;
+      height: 90px;
+      border: 2px solid rgba(0, 212, 170, 0.3);
+      border-radius: 16px;
+      background: rgba(0, 212, 170, 0.1);
+      color: #00d4aa;
+      font-size: 36px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      backdrop-filter: blur(10px);
+    }
+
+    .dpad-btn:hover:not(:disabled) {
+      background: rgba(0, 212, 170, 0.2);
+      border-color: rgba(0, 212, 170, 0.6);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 30px rgba(0, 212, 170, 0.3);
+    }
+
+    .dpad-btn:active:not(:disabled) {
+      background: rgba(0, 212, 170, 0.3);
+      transform: scale(0.94);
+      box-shadow: inset 0 6px 15px rgba(0, 212, 170, 0.2);
+    }
+
+    .dpad-btn:disabled {
+      opacity: 0.25;
+      cursor: not-allowed;
+    }
+
+    .dpad-stop {
+      width: 90px;
+      height: 90px;
+      border: 2px solid rgba(232, 69, 69, 0.3);
+      border-radius: 16px;
+      background: rgba(232, 69, 69, 0.1);
+      color: #e84545;
+      font-size: 32px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      backdrop-filter: blur(10px);
+    }
+
+    .dpad-stop:hover:not(:disabled) {
+      background: rgba(232, 69, 69, 0.2);
+      border-color: rgba(232, 69, 69, 0.6);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 30px rgba(232, 69, 69, 0.3);
+    }
+
+    .dpad-stop:active:not(:disabled) {
+      background: rgba(232, 69, 69, 0.3);
+      transform: scale(0.94);
+    }
+
+    .dpad-stop:disabled {
+      opacity: 0.25;
+      cursor: not-allowed;
+    }
+
+    .dpad-corner {
+      visibility: hidden;
+    }
+
+    .obstacle-indicator {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 16px;
+      border-radius: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      width: 100%;
+      backdrop-filter: blur(10px);
+    }
+
+    .obstacle-distance {
+      font-size: 22px;
+      color: #00d4aa;
+      font-weight: 700;
+    }
+
+    .obstacle-badge {
+      padding: 6px 14px;
+      border-radius: 8px;
+      background: rgba(232, 69, 69, 0.2);
+      color: #e84545;
+      font-size: 11px;
+      font-weight: 700;
+      display: none;
+      border: 1px solid rgba(232, 69, 69, 0.5);
+      animation: pulse-danger 0.6s infinite;
+    }
+
+    .obstacle-badge.show {
+      display: inline-block;
+    }
+
+    @keyframes pulse-danger {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .movement-status {
+      font-size: 12px;
+      text-align: center;
+      color: rgba(0, 212, 170, 0.7);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 600;
+    }
+
+    /* Suction Panel */
+    .suction-display-value {
+      font-size: 56px;
+      font-weight: 900;
+      color: #a78bfa;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .suction-slider {
+      width: 100%;
+      height: 12px;
+      border-radius: 6px;
+      background: linear-gradient(90deg, rgba(167, 139, 250, 0.2), rgba(167, 139, 250, 0.5));
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      margin-bottom: 24px;
+    }
+
+    .suction-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #a78bfa, #c4b5fd);
+      cursor: pointer;
+      border: 3px solid rgba(10, 14, 39, 0.8);
+      box-shadow: 0 6px 20px rgba(167, 139, 250, 0.4);
+      transition: all 0.2s;
+    }
+
+    .suction-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.25);
+      box-shadow: 0 8px 30px rgba(167, 139, 250, 0.5);
+    }
+
+    .suction-slider::-moz-range-thumb {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #a78bfa, #c4b5fd);
+      cursor: pointer;
+      border: 3px solid rgba(10, 14, 39, 0.8);
+      box-shadow: 0 6px 20px rgba(167, 139, 250, 0.4);
+    }
+
+    .preset-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .preset-btn {
+      padding: 14px;
+      border: 1px solid rgba(167, 139, 250, 0.2);
+      border-radius: 12px;
+      background: rgba(167, 139, 250, 0.08);
+      color: rgba(167, 139, 250, 0.8);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .preset-btn:hover {
+      background: rgba(167, 139, 250, 0.15);
+      border-color: rgba(167, 139, 250, 0.5);
+    }
+
+    .preset-btn.active {
+      border-color: #a78bfa;
+      background: linear-gradient(135deg, rgba(167, 139, 250, 0.25), rgba(167, 139, 250, 0.1));
+      color: #a78bfa;
+      box-shadow: 0 0 20px rgba(167, 139, 250, 0.4);
+    }
+
+    .preset-btn:active {
+      transform: scale(0.96);
+    }
+
+    .fan-icon {
+      width: 110px;
+      height: 110px;
+      margin: 0 auto 16px;
+      opacity: 0.7;
+    }
+
+    .fan-blade {
+      transition: opacity 0.3s;
+    }
+
+    .fan-blade.rotating {
+      animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .power-level {
+      text-align: center;
+      font-size: 11px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: rgba(167, 139, 250, 0.12);
+      border: 1px solid rgba(167, 139, 250, 0.25);
+      color: rgba(167, 139, 250, 0.85);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 700;
+    }
+
+    /* Auto Mode */
+    .auto-panel {
+      opacity: 1;
+      transition: all 0.3s;
+    }
+
+    .auto-panel.disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    .auto-state-badge {
+      display: inline-block;
+      padding: 12px 20px;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 12px;
+      margin-bottom: 20px;
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .auto-state-badge.moving {
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.2), rgba(0, 240, 217, 0.1));
+      border-color: rgba(0, 212, 170, 0.5);
+      color: #00d4aa;
+      box-shadow: 0 0 20px rgba(0, 212, 170, 0.3);
+    }
+
+    .auto-state-badge.turning {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1));
+      border-color: rgba(59, 130, 246, 0.5);
+      color: #3b82f6;
+    }
+
+    .auto-state-badge.avoid {
+      background: linear-gradient(135deg, rgba(245, 166, 35, 0.2), rgba(245, 166, 35, 0.1));
+      border-color: rgba(245, 166, 35, 0.5);
+      color: #f5a623;
+    }
+
+    .auto-state-badge.complete {
+      background: linear-gradient(135deg, rgba(46, 204, 138, 0.2), rgba(46, 204, 138, 0.1));
+      border-color: rgba(46, 204, 138, 0.5);
+      color: #2ecc8a;
+    }
+
+    .coverage-bar-container {
+      margin-bottom: 20px;
+    }
+
+    .coverage-label {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 600;
+    }
+
+    .auto-coverage-bar {
+      width: 100%;
+      height: 32px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .auto-coverage-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #a78bfa, #c4b5fd);
+      border-radius: 12px;
+      transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: #0a0e27;
+      text-transform: uppercase;
+    }
+
+    .auto-info {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .auto-info-item {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      padding: 14px 16px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .auto-info-value {
+      font-weight: 700;
+      color: #a78bfa;
+    }
+
+    .encoder-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .encoder-card {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 16px;
+      border-radius: 12px;
+      text-align: center;
+    }
+
+    .encoder-label {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .encoder-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: #a78bfa;
+    }
+
+    .auto-complete-msg {
+      background: linear-gradient(135deg, rgba(46, 204, 138, 0.2), rgba(46, 204, 138, 0.1));
+      border: 1px solid rgba(46, 204, 138, 0.5);
+      color: #2ecc8a;
+      padding: 16px;
+      border-radius: 12px;
+      text-align: center;
+      font-weight: 700;
+      display: none;
+      margin-bottom: 16px;
+      backdrop-filter: blur(10px);
+    }
+
+    .auto-complete-msg.show {
+      display: block;
+      animation: slideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .auto-stop-btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, rgba(232, 69, 69, 0.2), rgba(232, 69, 69, 0.1));
+      border: 1px solid rgba(232, 69, 69, 0.5);
+      border-radius: 12px;
+      color: #e84545;
+      cursor: pointer;
+      font-weight: 700;
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-size: 12px;
+    }
+
+    .auto-stop-btn:hover {
+      background: linear-gradient(135deg, rgba(232, 69, 69, 0.3), rgba(232, 69, 69, 0.2));
+      border-color: rgba(232, 69, 69, 0.7);
+    }
+
+    .auto-stop-btn:active {
+      transform: scale(0.96);
+    }
+
+    /* Log Panel */
+    .panel-log {
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .log-entry {
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: rgba(160, 174, 192, 0.9);
+      line-height: 1.5;
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .log-time {
+      color: rgba(100, 116, 139, 0.8);
+    }
+
+    .log-battery {
+      color: #f5a623;
+    }
+
+    .log-movement {
+      color: #00d4aa;
+    }
+
+    .log-mode {
+      color: #a78bfa;
+    }
+
+    .log-error {
+      color: #e84545;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(6px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .modal {
+      background: rgba(10, 14, 39, 0.95);
+      backdrop-filter: blur(30px);
+      border: 1px solid rgba(0, 212, 170, 0.2);
+      border-radius: 20px;
+      padding: 32px;
+      max-width: 440px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 28px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .modal-form {
+      display: grid;
+      gap: 20px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-label {
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: rgba(255, 255, 255, 0.6);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .form-input {
+      padding: 14px 16px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      color: #ffffff;
+      font-size: 13px;
+      font-family: 'Courier New', monospace;
+      transition: all 0.2s;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: rgba(0, 212, 170, 0.5);
+      background: rgba(0, 212, 170, 0.08);
+      box-shadow: 0 0 0 4px rgba(0, 212, 170, 0.12);
+    }
+
+    .form-note {
+      font-size: 10px;
+      color: rgba(100, 116, 139, 0.8);
+      margin-top: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .modal-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .modal-btn {
+      padding: 14px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.7);
+      cursor: pointer;
+      font-weight: 700;
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-size: 11px;
+    }
+
+    .modal-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .modal-btn.connect {
+      border-color: rgba(0, 212, 170, 0.5);
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.2), rgba(0, 240, 217, 0.1));
+      color: #00d4aa;
+      grid-column: 1 / 3;
+    }
+
+    .modal-btn.connect:hover {
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.3), rgba(0, 240, 217, 0.15));
+      border-color: rgba(0, 212, 170, 0.7);
+    }
+
+    .modal-btn.disconnect {
+      border-color: rgba(232, 69, 69, 0.4);
+      color: #e84545;
+    }
+
+    .modal-btn.disconnect:hover {
+      background: rgba(232, 69, 69, 0.12);
+      border-color: rgba(232, 69, 69, 0.6);
+    }
+
+    .modal-btn.close {
+      grid-column: 1 / 3;
+    }
+
+    .modal-btn:active {
+      transform: scale(0.96);
+    }
+
+    /* Toasts */
+    .toast-container {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .toast {
+      background: rgba(10, 14, 39, 0.95);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      padding: 16px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      max-width: 340px;
+      animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes slideUp {
+      from {
+        transform: translateY(120px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .toast.success {
+      border-color: rgba(46, 204, 138, 0.5);
+      color: #2ecc8a;
+    }
+
+    .toast.error {
+      border-color: rgba(232, 69, 69, 0.5);
+      color: #e84545;
+    }
+
+    .toast.warning {
+      border-color: rgba(245, 166, 35, 0.5);
+      color: #f5a623;
+    }
+
+    .toast.info {
+      border-color: rgba(0, 212, 170, 0.5);
+      color: #00d4aa;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(0, 212, 170, 0.25);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 212, 170, 0.5);
+    }
+
+    @media (max-width: 480px) {
+      .container {
+        padding: 16px;
+      }
+
+      .panel {
+        padding: 20px;
+      }
+
+      .dpad-container {
+        grid-template-columns: repeat(3, 70px);
+        gap: 10px;
+      }
+
+      .dpad-btn, .dpad-stop {
+        width: 70px;
+        height: 70px;
+      }
+
+      header {
+        padding: 16px;
+      }
+
+      .mode-bar {
+        padding: 12px 16px;
+      }
+
+      .battery-gauge-wrapper {
+        width: 180px;
+        height: 180px;
+      }
+
+      .battery-percent {
+        font-size: 44px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-logo">VacBot</div>
+    <div class="header-status">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Offline</span>
+    </div>
+    <button class="header-settings" id="settingsBtn" title="Settings">⚙️</button>
+  </header>
+
+  <div class="mode-bar">
+    <button class="mode-btn active" id="modeManualBtn" data-mode="MANUAL">MANUAL</button>
+    <button class="mode-btn" id="modeAutoBtn" data-mode="AUTO">AUTO</button>
+  </div>
+
+  <div class="container">
+    <div class="grid">
+      <!-- Battery Panel -->
+      <div class="panel">
+        <div class="panel-title">Battery Status</div>
+        <div class="battery-container">
+          <div class="battery-gauge-wrapper">
+            <svg class="battery-gauge" viewBox="0 0 200 200">
+              <defs>
+                <linearGradient id="batteryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#00d4aa;stop-opacity:1" />
+                  <stop offset="100%" style="stop-color:#00f0d9;stop-opacity:1" />
+                </linearGradient>
+              </defs>
+              <circle cx="100" cy="100" r="90" class="gauge-background"/>
+              <circle cx="100" cy="100" r="90" class="gauge-progress" id="gaugeArc"/>
+            </svg>
+            <div class="gauge-center">
+              <div class="battery-percent" id="batteryPercent">--</div>
+              <div class="battery-label">BATTERY</div>
+              <div class="battery-voltage" id="batteryVoltage">-- V</div>
+            </div>
+          </div>
+          <div class="battery-health" id="batteryHealth">--</div>
+          <div class="battery-critical-alert" id="batteryAlert">⚠ Battery Critical — Robot Stopped</div>
+        </div>
+      </div>
+
+      <!-- Movement Panel -->
+      <div class="panel">
+        <div class="panel-title">Manual Control</div>
+        <div class="movement-section">
+          <div class="obstacle-indicator">
+            <span>Distance:</span>
+            <span class="obstacle-distance" id="distanceValue">-- cm</span>
+            <span class="obstacle-badge" id="obstacleBadge">OBSTACLE</span>
+          </div>
+          <div class="dpad-container">
+            <div class="dpad-corner"></div>
+            <button class="dpad-btn" id="btnForward" data-cmd="FORWARD">↑</button>
+            <div class="dpad-corner"></div>
+            <button class="dpad-btn" id="btnLeft" data-cmd="LEFT">←</button>
+            <button class="dpad-stop" id="btnStop" data-cmd="STOP">■</button>
+            <button class="dpad-btn" id="btnRight" data-cmd="RIGHT">→</button>
+            <div class="dpad-corner"></div>
+            <button class="dpad-btn" id="btnBackward" data-cmd="BACKWARD">↓</button>
+            <div class="dpad-corner"></div>
+          </div>
+          <div class="movement-status" id="movementStatus">STOPPED</div>
+        </div>
+      </div>
+
+      <!-- Suction Panel -->
+      <div class="panel">
+        <div class="panel-title">Suction Power</div>
+        <svg class="fan-icon" id="fanIcon" viewBox="0 0 100 100">
+          <g id="fanBlade">
+            <circle cx="50" cy="50" r="8" fill="#a78bfa"/>
+            <path d="M 50 50 L 45 15 Q 50 10 55 15 Z" fill="#a78bfa"/>
+            <path d="M 50 50 L 75 40 Q 80 45 75 50 Z" fill="#a78bfa" opacity="0.7"/>
+            <path d="M 50 50 L 65 80 Q 60 85 55 80 Z" fill="#a78bfa" opacity="0.5"/>
+          </g>
+        </svg>
+        <div class="suction-display-value" id="suctionDisplay">0%</div>
+        <input type="range" class="suction-slider" id="suctionSlider" min="0" max="255" value="0">
+        <div class="preset-buttons">
+          <button class="preset-btn" id="presetEco" data-value="51">ECO</button>
+          <button class="preset-btn" id="presetNormal" data-value="128">NORMAL</button>
+          <button class="preset-btn" id="presetTurbo" data-value="255">TURBO</button>
+        </div>
+        <div class="power-level" id="powerLevel">IDLE</div>
+      </div>
+
+      <!-- Auto Mode Panel -->
+      <div class="panel auto-panel" id="autoPanel">
+        <div class="panel-title">Auto Mode</div>
+        <div class="auto-complete-msg" id="autoCompleteMsg">✓ Cleaning Complete!</div>
+        <div class="auto-state-badge" id="autoState">IDLE</div>
+        <div class="coverage-bar-container">
+          <div class="coverage-label">Coverage Progress</div>
+          <div class="auto-coverage-bar">
+            <div class="auto-coverage-fill" id="coverageFill" style="width: 0%">0%</div>
+          </div>
+        </div>
+        <div class="auto-info">
+          <div class="auto-info-item">
+            <span>Row Progress</span>
+            <span class="auto-info-value" id="autoRow">0 / 10</span>
+          </div>
+          <div class="auto-info-item">
+            <span>Yaw Angle</span>
+            <span class="auto-info-value" id="autoYaw">--°</span>
+          </div>
+        </div>
+        <div class="encoder-cards">
+          <div class="encoder-card">
+            <div class="encoder-label">Left Encoder</div>
+            <div class="encoder-value" id="leftDist">-- cm</div>
+          </div>
+          <div class="encoder-card">
+            <div class="encoder-label">Right Encoder</div>
+            <div class="encoder-value" id="rightDist">-- cm</div>
+          </div>
+        </div>
+        <button class="auto-stop-btn" id="autoStopBtn">Stop & Return to Manual</button>
+      </div>
+
+      <!-- Log Panel -->
+      <div class="panel panel-log">
+        <div class="panel-title">System Log</div>
+        <div id="logContainer"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal-title">MQTT Connection Settings</div>
+      <form class="modal-form" id="configForm">
+        <div class="form-group">
+          <label class="form-label">Broker Host</label>
+          <input type="text" class="form-input" id="cfgHost" placeholder="your-broker.hivemq.cloud">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Port (WSS)</label>
+          <input type="number" class="form-input" id="cfgPort" value="8884">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input type="text" class="form-input" id="cfgUser">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" class="form-input" id="cfgPass">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Topic Prefix</label>
+          <input type="text" class="form-input" id="cfgPrefix" value="vacbot">
+          <div class="form-note">Default: vacbot (must match firmware)</div>
+        </div>
+      </form>
+      <div class="modal-buttons">
+        <button class="modal-btn connect" id="btnConnect">Connect</button>
+        <button class="modal-btn disconnect" id="btnDisconnect">Disconnect</button>
+        <button class="modal-btn close" id="btnCloseModal">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+  <script>
+    let config = {
+      host: '0808028e417c4ff2957842f563dafe7b.s1.eu.hivemq.cloud',
+      port: 8884,
+      user: 'VaccumRobot',
+      pass: 'Vaccum@12345',
+      prefix: 'vacbot'
+    };
+
+    let mqtt = null;
+    let isConnected = false;
+    let currentMode = 'MANUAL';
+    let lastMotorCmd = 'STOP';
+    let logEntries = [];
+
+    const topicMap = () => ({
+      cmdMovement: `${config.prefix}/cmd/movement`,
+      cmdSuction: `${config.prefix}/cmd/suction`,
+      cmdMode: `${config.prefix}/cmd/mode`,
+      statBattery: `${config.prefix}/status/battery`,
+      statDistance: `${config.prefix}/status/distance`,
+      statMode: `${config.prefix}/status/mode`,
+      statAuto: `${config.prefix}/status/auto`,
+      statOnline: `${config.prefix}/status/online`
+    });
+
+    function loadConfig() {
+      const saved = localStorage.getItem('vacbot_config');
+      if (saved) {
+        try {
+          config = JSON.parse(saved);
+        } catch (e) {
+          console.error('Failed to load config:', e);
+        }
+      }
+      updateConfigForm();
+    }
+
+    function saveConfig() {
+      localStorage.setItem('vacbot_config', JSON.stringify(config));
+    }
+
+    function updateConfigForm() {
+      document.getElementById('cfgHost').value = config.host;
+      document.getElementById('cfgPort').value = config.port;
+      document.getElementById('cfgUser').value = config.user;
+      document.getElementById('cfgPass').value = config.pass;
+      document.getElementById('cfgPrefix').value = config.prefix;
+    }
+
+    function connectMQTT() {
+      const clientId = `vacbot-dash-${Math.random().toString(16).substr(2, 6)}`;
+      const url = `wss://${config.host}:${config.port}/mqtt`;
+
+      mqtt = window.mqtt.connect(url, {
+        clientId: clientId,
+        username: config.user,
+        password: config.pass,
+        keepalive: 30,
+        reconnectPeriod: 1000,
+        connectTimeout: 10 * 1000
+      });
+
+      mqtt.on('connect', () => {
+        isConnected = true;
+        updateConnectionStatus();
+        showToast('Connected to broker', 'success');
+        
+        const topics = topicMap();
+        mqtt.subscribe(topics.statBattery);
+        mqtt.subscribe(topics.statDistance);
+        mqtt.subscribe(topics.statMode);
+        mqtt.subscribe(topics.statAuto);
+        mqtt.subscribe(topics.statOnline);
+
+        if (navigator.wakeLock) {
+          navigator.wakeLock.request('screen').catch(() => {});
+        }
+      });
+
+      mqtt.on('message', handleMQTTMessage);
+      mqtt.on('error', (err) => {
+        console.error('MQTT error:', err);
+        showToast('Connection error', 'error');
+      });
+      mqtt.on('close', () => {
+        isConnected = false;
+        updateConnectionStatus();
+        showToast('Disconnected from broker', 'error');
+      });
+    }
+
+    function disconnectMQTT() {
+      if (mqtt) {
+        mqtt.end();
+        mqtt = null;
+      }
+      isConnected = false;
+      updateConnectionStatus();
+    }
+
+    function handleMQTTMessage(topic, message) {
+      const topics = topicMap();
+      const payload = message.toString();
+      addLog(topic, payload);
+
+      try {
+        if (topic === topics.statBattery) {
+          const data = JSON.parse(payload);
+          updateBatteryDisplay(data);
+        } else if (topic === topics.statDistance) {
+          const data = JSON.parse(payload);
+          updateDistanceDisplay(data);
+        } else if (topic === topics.statMode) {
+          currentMode = payload;
+          updateModeButtons();
+          updateAutoPanel();
+        } else if (topic === topics.statAuto) {
+          const data = JSON.parse(payload);
+          updateAutoDisplay(data);
+        } else if (topic === topics.statOnline) {
+          updateOnlineStatus(payload === 'online');
+        }
+      } catch (e) {
+        console.error('Error parsing message:', e);
+      }
+    }
+
+    function publishCommand(topic, payload) {
+      if (!isConnected) return;
+      mqtt.publish(topic, payload);
+    }
+
+    function updateConnectionStatus() {
+      const dot = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      if (isConnected) {
+        dot.classList.add('online');
+        text.textContent = 'Online';
+        updateManualControls();
+      } else {
+        dot.classList.remove('online');
+        text.textContent = 'Offline';
+        document.querySelectorAll('.dpad-btn, .dpad-stop').forEach(btn => {
+          btn.disabled = true;
+        });
+      }
+    }
+
+    function updateManualControls() {
+      const isManualMode = currentMode === 'MANUAL';
+      document.querySelectorAll('.dpad-btn, .dpad-stop').forEach(btn => {
+        btn.disabled = !isManualMode || !isConnected;
+      });
+    }
+
+    function updateOnlineStatus(online) {}
+
+    function updateModeButtons() {
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.mode === currentMode) {
+          btn.classList.add('active');
+        }
+      });
+      updateManualControls();
+    }
+
+    function updateAutoPanel() {
+      const panel = document.getElementById('autoPanel');
+      if (currentMode === 'AUTO') {
+        panel.classList.remove('disabled');
+      } else {
+        panel.classList.add('disabled');
+      }
+      updateManualControls();
+    }
+
+    function updateBatteryDisplay(data) {
+      document.getElementById('batteryPercent').textContent = data.percent + '%';
+      document.getElementById('batteryVoltage').textContent = data.voltage + ' V';
+      document.getElementById('batteryHealth').textContent = data.health;
+
+      const health = document.getElementById('batteryHealth');
+      health.className = 'battery-health';
+      if (data.health === 'EXCELLENT' || data.health === 'GOOD') {
+        health.style.background = 'rgba(0, 212, 170, 0.15)';
+        health.style.color = '#00d4aa';
+        health.style.borderColor = 'rgba(0, 212, 170, 0.4)';
+      } else if (data.health === 'FAIR') {
+        health.classList.add('fair');
+      } else if (data.health === 'LOW') {
+        health.classList.add('low');
+      } else if (data.health === 'CRITICAL') {
+        health.classList.add('critical');
+      }
+
+      const alert = document.getElementById('batteryAlert');
+      if (data.alert) {
+        alert.classList.add('show');
+        showToast('Battery critical!', 'error');
+      } else {
+        alert.classList.remove('show');
+      }
+
+      const percent = data.percent;
+      const dashoffset = 565 - (percent / 100) * 565;
+      const arc = document.getElementById('gaugeArc');
+      arc.style.strokeDashoffset = dashoffset;
+    }
+
+    function updateDistanceDisplay(data) {
+      document.getElementById('distanceValue').textContent = data.cm + ' cm';
+      const badge = document.getElementById('obstacleBadge');
+      if (data.obstacle) {
+        badge.classList.add('show');
+      } else {
+        badge.classList.remove('show');
+      }
+    }
+
+    function updateAutoDisplay(data) {
+      const state = data.state || 'IDLE';
+      const stateBadge = document.getElementById('autoState');
+      stateBadge.textContent = state;
+      stateBadge.className = 'auto-state-badge';
+
+      if (state === 'MOVING_FORWARD') {
+        stateBadge.classList.add('moving');
+      } else if (state === 'TURNING') {
+        stateBadge.classList.add('turning');
+      } else if (state === 'OBSTACLE_AVOID') {
+        stateBadge.classList.add('avoid');
+      } else if (state === 'COMPLETE') {
+        stateBadge.classList.add('complete');
+      }
+
+      document.getElementById('autoRow').textContent = data.row + ' / 10';
+      document.getElementById('autoYaw').textContent = data.yaw + '°';
+      document.getElementById('leftDist').textContent = data.left_dist_cm + ' cm';
+      document.getElementById('rightDist').textContent = data.right_dist_cm + ' cm';
+
+      const coverage = data.coverage_pct || 0;
+      document.getElementById('coverageFill').style.width = coverage + '%';
+      document.getElementById('coverageFill').textContent = coverage + '%';
+
+      if (state === 'COMPLETE') {
+        document.getElementById('autoCompleteMsg').classList.add('show');
+        showToast('Cleaning complete!', 'success');
+      } else {
+        document.getElementById('autoCompleteMsg').classList.remove('show');
+      }
+    }
+
+    document.getElementById('settingsBtn').addEventListener('click', () => {
+      document.getElementById('modalOverlay').classList.add('active');
+    });
+
+    document.getElementById('btnCloseModal').addEventListener('click', () => {
+      document.getElementById('modalOverlay').classList.remove('active');
+    });
+
+    document.getElementById('btnConnect').addEventListener('click', () => {
+      config.host = document.getElementById('cfgHost').value;
+      config.port = parseInt(document.getElementById('cfgPort').value);
+      config.user = document.getElementById('cfgUser').value;
+      config.pass = document.getElementById('cfgPass').value;
+      config.prefix = document.getElementById('cfgPrefix').value;
+      saveConfig();
+      connectMQTT();
+      document.getElementById('modalOverlay').classList.remove('active');
+    });
+
+    document.getElementById('btnDisconnect').addEventListener('click', () => {
+      disconnectMQTT();
+    });
+
+    document.querySelectorAll('.dpad-btn, .dpad-stop').forEach(btn => {
+      btn.addEventListener('mousedown', (e) => {
+        if (!isConnected) return;
+        publishCommand(topicMap().cmdMovement, btn.dataset.cmd);
+        lastMotorCmd = btn.dataset.cmd;
+        updateMovementStatus();
+        navigator.vibrate && navigator.vibrate(30);
+      });
+
+      btn.addEventListener('mouseup', () => {
+        if (isConnected && lastMotorCmd !== 'STOP') {
+          publishCommand(topicMap().cmdMovement, 'STOP');
+          lastMotorCmd = 'STOP';
+          updateMovementStatus();
+        }
+      });
+
+      btn.addEventListener('touchstart', (e) => {
+        if (!isConnected) return;
+        publishCommand(topicMap().cmdMovement, btn.dataset.cmd);
+        lastMotorCmd = btn.dataset.cmd;
+        updateMovementStatus();
+        navigator.vibrate && navigator.vibrate(30);
+      });
+
+      btn.addEventListener('touchend', () => {
+        if (isConnected && lastMotorCmd !== 'STOP') {
+          publishCommand(topicMap().cmdMovement, 'STOP');
+          lastMotorCmd = 'STOP';
+          updateMovementStatus();
+        }
+      });
+
+      btn.addEventListener('touchcancel', () => {
+        if (isConnected) {
+          publishCommand(topicMap().cmdMovement, 'STOP');
+          lastMotorCmd = 'STOP';
+          updateMovementStatus();
+        }
+      });
+    });
+
+    function updateMovementStatus() {
+      const status = document.getElementById('movementStatus');
+      if (lastMotorCmd === 'STOP') {
+        status.textContent = 'STOPPED';
+      } else {
+        status.textContent = 'MOVING: ' + lastMotorCmd;
+      }
+    }
+
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        publishCommand(topicMap().cmdMode, btn.dataset.mode);
+      });
+    });
+
+    document.getElementById('suctionSlider').addEventListener('input', debounce((e) => {
+      const value = parseInt(e.target.value);
+      const percent = Math.round((value / 255) * 100);
+      document.getElementById('suctionDisplay').textContent = percent + '%';
+      updatePowerLevel(value);
+      updateFanRotation(value);
+      updatePresetButtons(value);
+    }, 100));
+
+    document.getElementById('suctionSlider').addEventListener('change', (e) => {
+      publishCommand(topicMap().cmdSuction, e.target.value);
+    });
+
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const value = parseInt(btn.dataset.value);
+        document.getElementById('suctionSlider').value = value;
+        const percent = Math.round((value / 255) * 100);
+        document.getElementById('suctionDisplay').textContent = percent + '%';
+        updatePowerLevel(value);
+        updateFanRotation(value);
+        updatePresetButtons(value);
+        publishCommand(topicMap().cmdSuction, value.toString());
+      });
+    });
+
+    function updatePowerLevel(value) {
+      const level = document.getElementById('powerLevel');
+      if (value === 0) {
+        level.textContent = 'IDLE';
+      } else if (value < 85) {
+        level.textContent = 'LOW';
+      } else if (value < 200) {
+        level.textContent = 'MEDIUM';
+      } else {
+        level.textContent = 'HIGH';
+      }
+    }
+
+    function updateFanRotation(value) {
+      const fan = document.getElementById('fanBlade');
+      if (value > 0) {
+        fan.classList.add('rotating');
+      } else {
+        fan.classList.remove('rotating');
+      }
+    }
+
+    function updatePresetButtons(value) {
+      document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (parseInt(btn.dataset.value) === value) {
+          btn.classList.add('active');
+        }
+      });
+    }
+
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.mode;
+        publishCommand(topicMap().cmdMode, mode);
+        currentMode = mode;
+        updateModeButtons();
+        updateAutoPanel();
+      });
+    });
+
+    document.getElementById('autoStopBtn').addEventListener('click', () => {
+      publishCommand(topicMap().cmdMode, 'MANUAL');
+      currentMode = 'MANUAL';
+      updateModeButtons();
+      updateAutoPanel();
+    });
+
+    window.addEventListener('visibilitychange', () => {
+      if (document.hidden && currentMode === 'MANUAL') {
+        publishCommand(topicMap().cmdMovement, 'STOP');
+      }
+    });
+
+    window.addEventListener('blur', () => {
+      if (currentMode === 'MANUAL') {
+        publishCommand(topicMap().cmdMovement, 'STOP');
+      }
+    });
+
+    function debounce(func, delay) {
+      let timeout;
+      return function (...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func(...args), delay);
+      };
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.remove();
+      }, 4000);
+    }
+
+    function addLog(topic, payload) {
+      const time = new Date();
+      const timeStr = time.toLocaleTimeString();
+      const entry = { time: timeStr, topic, payload };
+      logEntries.unshift(entry);
+      if (logEntries.length > 30) {
+        logEntries.pop();
+      }
+      updateLogDisplay();
+    }
+
+    function updateLogDisplay() {
+      const container = document.getElementById('logContainer');
+      container.innerHTML = '';
+      logEntries.forEach(entry => {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        let className = '';
+        if (entry.topic.includes('battery')) className = 'log-battery';
+        else if (entry.topic.includes('movement')) className = 'log-movement';
+        else if (entry.topic.includes('mode')) className = 'log-mode';
+        else if (entry.topic.includes('error')) className = 'log-error';
+
+        div.innerHTML = `<span class="log-time">[${entry.time}]</span> ${entry.topic} <span class="${className}">→ ${entry.payload}</span>`;
+        container.appendChild(div);
+      });
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+
+    loadConfig();
+    updateModeButtons();
+    updateAutoPanel();
+    connectMQTT();
+  </script>
+</body>
+</html>
