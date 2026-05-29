@@ -9,13 +9,13 @@
 // CONFIG SECTION — EDIT THESE VALUES ONLY
 // ============================================================================
 #define WIFI_SSID                "COMFRI"
-#define WIFI_PASS                "your_wifi_password"
+#define WIFI_PASS                "1234567890"
 #define MQTT_HOST                "0808028e417c4ff2957842f563dafe7b.s1.eu.hivemq.cloud"
 #define MQTT_PORT                8883
 #define MQTT_USER                "VaccumRobot"
 #define MQTT_PASS                "Vaccum@12345"
 #define BATTERY_MAX_V            12.6f
-#define BATTERY_MIN_V            9.0f
+#define BATTERY_MIN_V            7.0f
 #define PULSES_PER_REV           20
 #define WHEEL_DIAMETER_CM        6.5f
 #define ROW_LENGTH_CM            150.0f
@@ -323,6 +323,65 @@ void setMotorsByCmd(String cmd) {
   } else {
     Serial.print("[CMD] Unknown movement command: ");
     Serial.println(cmd);
+  }
+}
+
+// ============================================================================
+// Continuous Obstacle Monitoring (Safety check during movement)
+// ============================================================================
+void checkObstaclesWhileMoving() {
+  // This function continuously checks for obstacles and stops if detected
+  // Called frequently from loop() to provide responsive obstacle avoidance
+  
+  // MANUAL mode: Stop immediately on any obstacle
+  if (currentMode == "MANUAL") {
+    if (sonarFront < OBSTACLE_CM) {
+      // Only log if this is the first detection in this movement
+      static unsigned long lastManualObstacleStop = 0;
+      if (millis() - lastManualObstacleStop > 500) {
+        Serial.print("[SAFETY] MANUAL: Front obstacle at ");
+        Serial.print(sonarFront);
+        Serial.println("cm — stopping immediately!");
+        lastManualObstacleStop = millis();
+      }
+      motorsStop();
+      return;
+    }
+  }
+  
+  // AUTO mode: Check for dangerous proximity
+  // Stop if getting too close to front obstacle (< 9cm) or approaching very fast
+  if (currentMode == "AUTO" && autoState == AUTO_MOVING_FORWARD) {
+    if (sonarFront < FRONT_STOP_CM) {
+      // Critical distance - emergency stop
+      static unsigned long lastAutoEmergencyStop = 0;
+      if (millis() - lastAutoEmergencyStop > 500) {
+        Serial.print("[SAFETY] AUTO: CRITICAL PROXIMITY - Front at ");
+        Serial.print(sonarFront);
+        Serial.println("cm — emergency stop!");
+        lastAutoEmergencyStop = millis();
+      }
+      motorsStop();
+      return;
+    }
+    
+    // If approaching very fast (2+ cm decrease in 30ms), slow down preemptively
+    if (isApproaching && sonarFront < 35) {
+      static unsigned long lastAutoSlowDown = 0;
+      if (millis() - lastAutoSlowDown > 200) {
+        Serial.print("[SAFETY] AUTO: Rapid approach detected at ");
+        Serial.print(sonarFront);
+        Serial.println("cm — triggering avoidance");
+        lastAutoSlowDown = millis();
+        // Trigger the predictive avoidance
+        motorsStop();
+        obstacleTimer = millis();
+        obstacleRetry = 0;
+        avoidPhase = AVOID_WAITING;
+        avoidTurnDir = (sonarLeft >= sonarRight) ? 1 : -1;
+        autoState = AUTO_OBSTACLE_AVOID;
+      }
+    }
   }
 }
 
@@ -1050,6 +1109,23 @@ void setup() {
     lastHeartbeatPub = millis() - 9500;  // Force heartbeat to fire in first loop (~500ms)
   } else {
     Serial.println("[SETUP] Initial MQTT connection failed — will retry in loop");
+    Serial.println("[SETUP] Initial MQTT connection failed!");
+    Serial.println("\n[MQTT] DIAGNOSTIC: Attempting fallback (insecure mode)...");
+    Serial.println("[MQTT] This will help identify if it's a certificate issue");
+    
+    // Reset and try WITHOUT TLS certificate verification
+    secureClient.setInsecure();  // Disable TLS verification
+    delay(1000);
+    
+    if (connectMQTT()) {
+      Serial.println("\n[MQTT] ✅ SUCCESS with insecure mode!");
+      Serial.println("[MQTT] This confirms it's a CERTIFICATE issue, not network");
+      Serial.println("[MQTT] The TLS cert in the code may be outdated");
+      lastHeartbeatPub = millis() - 9500;
+    } else {
+      Serial.println("\n[MQTT] Still failed with insecure mode");
+      Serial.println("[MQTT] This suggests a network/firewall issue, not certificate");
+    }
   }
 
   Serial.println();
@@ -1104,8 +1180,8 @@ void loop() {
   // Update gyro angle
   updateGyroAngle();
 
-  // ========== ENHANCED: Poll all 3 sensors every 100ms ==========
-  if (millis() - lastSonarPub >= 100) {
+  // ========== ENHANCED: Poll all 3 sensors every 30ms (faster obstacle detection) ==========
+  if (millis() - lastSonarPub >= 30) {
     Sonars s = readAllSonars();
     
     // Store readings
@@ -1153,6 +1229,10 @@ void loop() {
     publishAutoStatus();
     lastAutoPub = millis();
   }
+
+  // ========== CONTINUOUS OBSTACLE MONITORING ==========
+  // Check for obstacles while motors are moving (safety check every loop iteration)
+  checkObstaclesWhileMoving();
 
   // Run auto mode state machine
   if (currentMode == "AUTO") {

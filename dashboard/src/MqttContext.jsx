@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import mqtt from 'mqtt';
 
 export const MqttContext = createContext(null);
@@ -57,6 +57,18 @@ export const MqttProvider = ({ children }) => {
     front_trend: 'stable'
   });
 
+  // Log queue for LiveLogs component
+  const [logMessages, setLogMessages] = useState([]);
+  const addLog = useCallback((tag, message) => {
+    const now = new Date();
+    const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+    setLogMessages(prev => {
+      const next = [...prev, { time, tag, message }];
+      if (next.length > 50) next.shift();
+      return next;
+    });
+  }, []);
+
   const connect = () => {
     if (client) return;
 
@@ -96,16 +108,23 @@ export const MqttProvider = ({ children }) => {
       try {
         if (topic === `${prefix}/status/battery`) {
           console.log("[MQTT-RX] Battery:", msg);
-          setBattery(JSON.parse(msg));
+          const data = JSON.parse(msg);
+          setBattery(data);
+          if (data.alert) addLog('WARN', `Battery critical: ${data.percent}%`);
         } else if (topic === `${prefix}/status/distance`) {
           console.log("[MQTT-RX] Distance:", msg);
-          setDistance(JSON.parse(msg));
+          const data = JSON.parse(msg);
+          setDistance(data);
+          if (data.obstacle) addLog('WARN', `Obstacle at ${data.cm}cm`);
         } else if (topic === `${prefix}/status/mode`) {
           console.log("[MQTT-RX] Mode:", msg);
           setRobotMode(msg);
+          addLog('INFO', `Mode changed: ${msg}`);
         } else if (topic === `${prefix}/status/auto`) {
           console.log("[MQTT-RX] Auto:", msg);
-          setAutoState(JSON.parse(msg));
+          const data = JSON.parse(msg);
+          setAutoState(data);
+          if (data.state && data.state !== 'MANUAL_ACTIVE') addLog('INFO', `Auto: ${data.state} Row ${data.row}`);
         } else if (topic === `${prefix}/status/online`) {
           console.log("[MQTT-RX] Robot online status:", msg);
           // Robot is online if it sends any message on the online topic
@@ -203,7 +222,9 @@ export const MqttProvider = ({ children }) => {
       suction,
       setMovement,
       sendSuction,
-      sendMode
+      sendMode,
+      logMessages,                   // Log queue for LiveLogs
+      publishCommand                 // Exposed for BottomCommandDock
     }}>
       {children}
     </MqttContext.Provider>

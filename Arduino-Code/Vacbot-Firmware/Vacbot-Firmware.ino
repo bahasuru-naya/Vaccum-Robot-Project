@@ -15,7 +15,7 @@
 #define MQTT_USER                "VaccumRobot"
 #define MQTT_PASS                "Vaccum@12345"
 #define BATTERY_MAX_V            12.6f
-#define BATTERY_MIN_V            9.0f
+#define BATTERY_MIN_V            7.0f
 #define PULSES_PER_REV           20
 #define WHEEL_DIAMETER_CM        6.5f
 #define ROW_LENGTH_CM            150.0f
@@ -71,6 +71,8 @@
 #define T_STAT_MODE     "vacbot/status/mode"
 #define T_STAT_AUTO     "vacbot/status/auto"
 #define T_STAT_ONLINE   "vacbot/status/online"
+#define T_STAT_SONARS   "vacbot/status/sonars"
+#define T_STAT_NAV      "vacbot/status/navigation"
 
 // TLS Root Certificate (Let's Encrypt R13 - Current HiveMQ Cert)
 static const char* ROOT_CA PROGMEM = R"EOF(
@@ -125,8 +127,18 @@ int currentSuction = 0;
 bool obstacleDetected = false;
 float distanceCm = 999.0f;
 
+// Enhanced sonar tracking (all 3 sensors)
+long sonarFront = 999;
+long sonarLeft = 999;
+long sonarRight = 999;
+long prevSonarFront = 999;  // For predictive logic
+bool isApproaching = false;  // Front distance decreasing
+String safeDirString = "FORWARD,LEFT,RIGHT";  // Default all safe
+
 unsigned long lastBatteryPub = 0;
 unsigned long lastDistancePub = 0;
+unsigned long lastSonarPub = 0;      // New: all 3 sensors
+unsigned long lastNavPub = 0;        // New: navigation guidance
 unsigned long lastAutoPub = 0;
 unsigned long lastHeartbeatPub = 0;
 unsigned long lastReconnectAttempt = 0;
@@ -277,11 +289,27 @@ void setMotorsByCmd(String cmd) {
   Serial.print("[CMD] Movement command received: ");
   Serial.println(cmd);
 
-  if (obstacleDetected && cmd == "FORWARD") {
-    Serial.println("[CMD] BLOCKED — obstacle detected, ignoring FORWARD");
-    motorsStop();
-    return;
+  // MANUAL mode smart checking
+  if (currentMode == "MANUAL") {
+    if (cmd == "FORWARD" && sonarFront <= OBSTACLE_CM) {
+      Serial.print("[CMD] BLOCKED — front obstacle at ");
+      Serial.print(sonarFront);
+      Serial.println("cm, command ignored");
+      motorsStop();
+      return;
+    }
+    if (cmd == "LEFT" && sonarLeft <= SIDE_CLEAR_CM) {
+      Serial.print("[CMD] CAUTION — left obstacle at ");
+      Serial.print(sonarLeft);
+      Serial.println("cm, but allowing (user control)");
+    }
+    if (cmd == "RIGHT" && sonarRight <= SIDE_CLEAR_CM) {
+      Serial.print("[CMD] CAUTION — right obstacle at ");
+      Serial.print(sonarRight);
+      Serial.println("cm, but allowing (user control)");
+    }
   }
+  
   if (cmd == "FORWARD") {
     motorsForward();
   } else if (cmd == "BACKWARD") {
@@ -295,6 +323,65 @@ void setMotorsByCmd(String cmd) {
   } else {
     Serial.print("[CMD] Unknown movement command: ");
     Serial.println(cmd);
+  }
+}
+
+// ============================================================================
+// Continuous Obstacle Monitoring (Safety check during movement)
+// ============================================================================
+void checkObstaclesWhileMoving() {
+  // This function continuously checks for obstacles and stops if detected
+  // Called frequently from loop() to provide responsive obstacle avoidance
+  
+  // MANUAL mode: Stop immediately on any obstacle
+  if (currentMode == "MANUAL") {
+    if (sonarFront < OBSTACLE_CM) {
+      // Only log if this is the first detection in this movement
+      static unsigned long lastManualObstacleStop = 0;
+      if (millis() - lastManualObstacleStop > 500) {
+        Serial.print("[SAFETY] MANUAL: Front obstacle at ");
+        Serial.print(sonarFront);
+        Serial.println("cm — stopping immediately!");
+        lastManualObstacleStop = millis();
+      }
+      motorsStop();
+      return;
+    }
+  }
+  
+  // AUTO mode: Check for dangerous proximity
+  // Stop if getting too close to front obstacle (< 9cm) or approaching very fast
+  if (currentMode == "AUTO" && autoState == AUTO_MOVING_FORWARD) {
+    if (sonarFront < FRONT_STOP_CM) {
+      // Critical distance - emergency stop
+      static unsigned long lastAutoEmergencyStop = 0;
+      if (millis() - lastAutoEmergencyStop > 500) {
+        Serial.print("[SAFETY] AUTO: CRITICAL PROXIMITY - Front at ");
+        Serial.print(sonarFront);
+        Serial.println("cm — emergency stop!");
+        lastAutoEmergencyStop = millis();
+      }
+      motorsStop();
+      return;
+    }
+    
+    // If approaching very fast (2+ cm decrease in 30ms), slow down preemptively
+    if (isApproaching && sonarFront < 35) {
+      static unsigned long lastAutoSlowDown = 0;
+      if (millis() - lastAutoSlowDown > 200) {
+        Serial.print("[SAFETY] AUTO: Rapid approach detected at ");
+        Serial.print(sonarFront);
+        Serial.println("cm — triggering avoidance");
+        lastAutoSlowDown = millis();
+        // Trigger the predictive avoidance
+        motorsStop();
+        obstacleTimer = millis();
+        obstacleRetry = 0;
+        avoidPhase = AVOID_WAITING;
+        avoidTurnDir = (sonarLeft >= sonarRight) ? 1 : -1;
+        autoState = AUTO_OBSTACLE_AVOID;
+      }
+    }
   }
 }
 
@@ -536,14 +623,78 @@ Sonars readAllSonars() {
   return s;
 }
 
+// ============================================================================
+// Calculate safe directions based on sensor readings
+// ============================================================================
+String calculateSafeDirections(long front, long left, long right) {
+  String safe = "";
+  
+  if (front > OBSTACLE_CM) safe += "FORWARD";
+  if (left > SIDE_CLEAR_CM) {
+    if (safe.length() > 0) safe += ",";
+    safe += "LEFT";
+  }
+  if (right > SIDE_CLEAR_CM) {
+    if (safe.length() > 0) safe += ",";
+    safe += "RIGHT";
+  }
+  
+  // Backward is generally safe unless something is behind
+  if (safe.length() > 0) safe += ",";
+  safe += "BACKWARD";
+  
+  return (safe.length() == 0) ? "STOP" : safe;
+}
+
+// ============================================================================
+// Publish all sonar readings
+// ============================================================================
+void publishSonars() {
+  Serial.print("[SONARS] Publishing — F=");
+  Serial.print(sonarFront);
+  Serial.print("cm L=");
+  Serial.print(sonarLeft);
+  Serial.print("cm R=");
+  Serial.print(sonarRight);
+  Serial.println("cm");
+  
+  StaticJsonDocument<128> doc;
+  doc["front"] = (int)sonarFront;
+  doc["left"] = (int)sonarLeft;
+  doc["right"] = (int)sonarRight;
+  
+  String payload;
+  serializeJson(doc, payload);
+  mqtt.publish(T_STAT_SONARS, payload.c_str());
+}
+
+// ============================================================================
+// Publish navigation guidance
+// ============================================================================
+void publishNavigation() {
+  Serial.print("[NAV] Safe directions: ");
+  Serial.print(safeDirString);
+  Serial.print("  Approaching: ");
+  Serial.println(isApproaching ? "YES" : "NO");
+  
+  StaticJsonDocument<256> doc;
+  doc["safe_directions"] = safeDirString;
+  doc["approaching"] = isApproaching;
+  doc["front_trend"] = (sonarFront < prevSonarFront) ? "decreasing" : "stable";
+  
+  String payload;
+  serializeJson(doc, payload);
+  mqtt.publish(T_STAT_NAV, payload.c_str());
+}
+
 void publishDistance() {
-  long dist = readSonar(PIN_ECHO_FRONT);
-  distanceCm = (float)dist;
+  // Use front sensor from continuous polling
+  distanceCm = (float)sonarFront;
   bool wasObstacle = obstacleDetected;
-  obstacleDetected = (dist < OBSTACLE_CM);
+  obstacleDetected = (sonarFront < OBSTACLE_CM);
 
   Serial.print("[DISTANCE] Front=");
-  Serial.print(dist);
+  Serial.print(sonarFront);
   Serial.print("cm  Obstacle=");
   Serial.println(obstacleDetected ? "YES" : "No");
 
@@ -560,7 +711,7 @@ void publishDistance() {
   }
 
   StaticJsonDocument<128> doc;
-  doc["cm"] = (int)dist;
+  doc["cm"] = (int)sonarFront;
   doc["obstacle"] = obstacleDetected;
 
   String payload;
@@ -957,6 +1108,7 @@ void setup() {
     Serial.println("[SETUP] Initial MQTT connection successful!");
     lastHeartbeatPub = millis() - 9500;  // Force heartbeat to fire in first loop (~500ms)
   } else {
+    Serial.println("[SETUP] Initial MQTT connection failed — will retry in loop");
     Serial.println("[SETUP] Initial MQTT connection failed!");
     Serial.println("\n[MQTT] DIAGNOSTIC: Attempting fallback (insecure mode)...");
     Serial.println("[MQTT] This will help identify if it's a certificate issue");
@@ -1028,10 +1180,32 @@ void loop() {
   // Update gyro angle
   updateGyroAngle();
 
-  // Publish distance
-  if (millis() - lastDistancePub >= 500) {
+  // ========== ENHANCED: Poll all 3 sensors every 30ms (faster obstacle detection) ==========
+  if (millis() - lastSonarPub >= 30) {
+    Sonars s = readAllSonars();
+    
+    // Store readings
+    prevSonarFront = sonarFront;
+    sonarFront = s.front;
+    sonarLeft = s.left;
+    sonarRight = s.right;
+    
+    // Detect if approaching obstacle
+    isApproaching = (sonarFront < prevSonarFront && sonarFront < 50);
+    
+    // Calculate safe directions
+    safeDirString = calculateSafeDirections(sonarFront, sonarLeft, sonarRight);
+    
+    // Update obstacle detection
     publishDistance();
-    lastDistancePub = millis();
+    
+    // Publish all 3 sonars
+    publishSonars();
+    
+    // Publish navigation guidance
+    publishNavigation();
+    
+    lastSonarPub = millis();
   }
 
   // Publish battery
@@ -1055,6 +1229,10 @@ void loop() {
     publishAutoStatus();
     lastAutoPub = millis();
   }
+
+  // ========== CONTINUOUS OBSTACLE MONITORING ==========
+  // Check for obstacles while motors are moving (safety check every loop iteration)
+  checkObstaclesWhileMoving();
 
   // Run auto mode state machine
   if (currentMode == "AUTO") {
@@ -1116,7 +1294,32 @@ void runAutoMode() {
       break;
 
     case AUTO_MOVING_FORWARD:
-      if (obstacleDetected) {
+      // PREDICTIVE: Check if approaching obstacle before collision
+      if (isApproaching && sonarFront < 40) {
+        Serial.print("[AUTO] PREDICTIVE AVOIDANCE: Front approaching at ");
+        Serial.print(sonarFront);
+        Serial.println("cm — deciding best turn");
+        
+        // Decide which way is clearer
+        int turnDir = (sonarLeft >= sonarRight) ? 1 : -1;
+        
+        Serial.print("[AUTO] Turning ");
+        Serial.print(turnDir > 0 ? "LEFT" : "RIGHT");
+        Serial.print(" (L=");
+        Serial.print(sonarLeft);
+        Serial.print("cm vs R=");
+        Serial.print(sonarRight);
+        Serial.println("cm)");
+        
+        motorsStop();
+        obstacleTimer = millis();
+        obstacleRetry = 0;
+        avoidPhase = AVOID_WAITING;
+        avoidTurnDir = turnDir;
+        autoState = AUTO_OBSTACLE_AVOID;
+      }
+      // REACTIVE: Obstacle confirmed
+      else if (obstacleDetected) {
         Serial.print("[AUTO] Obstacle detected at ");
         Serial.print(distanceCm, 1);
         Serial.println("cm — stopping & entering obstacle avoidance");
@@ -1125,7 +1328,9 @@ void runAutoMode() {
         obstacleRetry = 0;
         avoidPhase = AVOID_WAITING;
         autoState = AUTO_OBSTACLE_AVOID;
-      } else if (avgDistCm() >= ROW_LENGTH_CM) {
+      } 
+      // ROW COMPLETE
+      else if (avgDistCm() >= ROW_LENGTH_CM) {
         Serial.print("[AUTO] Row length reached (");
         Serial.print(avgDistCm(), 1);
         Serial.print("cm >= ");

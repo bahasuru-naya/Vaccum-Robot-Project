@@ -1,80 +1,139 @@
-import React, { useState } from 'react';
-import { MqttProvider, useMqtt } from './MqttContext';
-import { Activity, Gamepad2, Settings, Navigation, WifiOff, Wifi, Radar } from 'lucide-react';
-import DashboardTab from './components/DashboardTab';
-import DriveTab from './components/DriveTab';
-import AutoTab from './components/AutoTab';
-import { RadarTab } from './components/RadarTab';
+import React from 'react';
+import { MqttProvider } from './MqttContext';
+import TopStatusBar from './components/TopStatusBar';
+import BottomCommandDock from './components/BottomCommandDock';
+import BatteryModule from './components/BatteryModule';
+import SensorStatus from './components/SensorStatus';
+import WheelMetrics from './components/WheelMetrics';
+import SlamMap from './components/SlamMap';
+import ArrowNavigation from './components/ArrowNavigation';
+import VacuumControl from './components/VacuumControl';
+import MissionPanel from './components/MissionPanel';
+import RadarModule from './components/RadarModule';
+import AiDecisions from './components/AiDecisions';
+
+const DesktopLayout = () => (
+  <div className="app-container">
+    <div className="app-bg" />
+
+    {/* Top Bar */}
+    <TopStatusBar />
+
+    {/* Left Sidebar — Telemetry */}
+    <div className="left-sidebar">
+      <BatteryModule />
+      <SensorStatus />
+      <WheelMetrics />
+    </div>
+
+    {/* Center — SLAM Map + Radar Side by Side */}
+    <div className="center-panel">
+      <div className="center-top">
+        <SlamMap />
+        <RadarModule />
+      </div>
+      <div className="center-bottom">
+        <ArrowNavigation />
+        <VacuumControl />
+      </div>
+    </div>
+
+    {/* Right Panel — Mission/AI */}
+    <div className="right-panel">
+      <MissionPanel />
+      <AiDecisions />
+    </div>
+
+    {/* Bottom Dock */}
+    <BottomCommandDock />
+  </div>
+);
+
+const MobileLayout = () => (
+  <div className="app-container">
+    <div className="app-bg" />
+
+    <TopStatusBar />
+
+    <div className="mobile-scroll">
+      {/* SLAM Map first — hero */}
+      <SlamMap />
+
+      {/* Radar */}
+      <RadarModule />
+
+      {/* Arrow Navigation */}
+      <ArrowNavigation />
+
+      {/* Vacuum Control */}
+      <VacuumControl />
+
+      {/* Key stats */}
+      <BatteryModule />
+      <SensorStatus />
+      <MissionPanel />
+
+      {/* Secondary */}
+      <WheelMetrics />
+      <AiDecisions />
+    </div>
+
+    <BottomCommandDock />
+  </div>
+);
+
+const TabletLayout = () => (
+  <div className="app-container">
+    <div className="app-bg" />
+
+    <TopStatusBar />
+
+    <div className="center-panel" style={{ gridArea: 'center' }}>
+      <div className="center-top">
+        <SlamMap />
+        <RadarModule />
+      </div>
+      <div className="center-bottom">
+        <ArrowNavigation />
+        <VacuumControl />
+      </div>
+    </div>
+
+    <div className="panels-tablet" style={{ gridArea: 'panels' }}>
+      <div className="left-sidebar">
+        <BatteryModule />
+        <SensorStatus />
+        <WheelMetrics />
+      </div>
+      <div className="right-panel">
+        <MissionPanel />
+        <AiDecisions />
+      </div>
+    </div>
+
+    <BottomCommandDock />
+  </div>
+);
 
 const AppContent = () => {
-  const { isConnected, robotMode } = useMqtt();
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [layout, setLayout] = React.useState('desktop');
 
-  return (
-    <div className="app-container">
-      {/* Header */}
-      <header className="app-header">
-        <div className="header-brand">
-          <h1>VacBot</h1>
-          <div className={`status-badge ${isConnected ? 'online' : 'offline'}`}>
-            {isConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
-            <span>{isConnected ? 'Connected' : 'Offline'}</span>
-          </div>
-        </div>
-        <div className="header-mode-badge">
-          {robotMode}
-        </div>
-      </header>
+  React.useEffect(() => {
+    const checkLayout = () => {
+      const w = window.innerWidth;
+      if (w < 768) setLayout('mobile');
+      else if (w < 1200) setLayout('tablet');
+      else setLayout('desktop');
+    };
 
-      {/* Main Scrollable Content */}
-      <main className="app-main">
-        <div className={`tab-wrapper ${activeTab === 'dashboard' ? 'active' : ''}`}>
-          <DashboardTab />
-        </div>
-        <div className={`tab-wrapper ${activeTab === 'drive' ? 'active' : ''}`}>
-          <DriveTab />
-        </div>
-        <div className={`tab-wrapper ${activeTab === 'auto' ? 'active' : ''}`}>
-          <AutoTab />
-        </div>
-        <div className={`tab-wrapper ${activeTab === 'radar' ? 'active' : ''}`}>
-          <RadarTab />
-        </div>
-      </main>
+    checkLayout();
+    window.addEventListener('resize', checkLayout);
+    return () => window.removeEventListener('resize', checkLayout);
+  }, []);
 
-      {/* Bottom Navigation */}
-      <nav className="bottom-nav">
-        <button 
-          className={`nav-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
-          onClick={() => setActiveTab('dashboard')}
-        >
-          <Activity size={24} />
-          <span>Dash</span>
-        </button>
-        <button 
-          className={`nav-btn ${activeTab === 'drive' ? 'active' : ''}`}
-          onClick={() => setActiveTab('drive')}
-        >
-          <Gamepad2 size={24} />
-          <span>Drive</span>
-        </button>
-        <button 
-          className={`nav-btn ${activeTab === 'radar' ? 'active' : ''}`}
-          onClick={() => setActiveTab('radar')}
-        >
-          <Radar size={24} />
-          <span>Radar</span>
-        </button>
-        <button 
-          className={`nav-btn ${activeTab === 'auto' ? 'active' : ''}`}
-          onClick={() => setActiveTab('auto')}
-        >
-          <Navigation size={24} />
-          <span>Auto</span>
-        </button>
-      </nav>
-    </div>
-  );
+  if (layout === 'mobile') return <MobileLayout />;
+  if (layout === 'tablet') return <TabletLayout />;
+  return <DesktopLayout />;
 };
 
 function App() {
