@@ -26,9 +26,11 @@ Thumbs.db
 dist/
 build/
 
-# Arduino
+# Arduino / PlatformIO
 *.o
 *.a
 *.so
 .pio/
 .vscode/
+.clang_complete
+.gcc-flags.json

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vacbot-v1';
+const CACHE_NAME = 'vacbot-v2';
 const CACHE_URLS = [
   './',
   './index.html',

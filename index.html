@@ -1144,11 +1144,12 @@
         <div class="suction-display-value" id="suctionDisplay">0%</div>
         <input type="range" class="suction-slider" id="suctionSlider" min="0" max="255" value="0">
         <div class="preset-buttons">
-          <button class="preset-btn" id="presetEco" data-value="51">ECO</button>
-          <button class="preset-btn" id="presetNormal" data-value="128">NORMAL</button>
+          <button class="preset-btn" id="presetEco" data-value="160">ECO (63%)</button>
+          <button class="preset-btn" id="presetNormal" data-value="200">NORMAL</button>
           <button class="preset-btn" id="presetTurbo" data-value="255">TURBO</button>
         </div>
         <div class="power-level" id="powerLevel">IDLE</div>
+        <div id="autoSuctionWarning" style="display: none; font-size: 11px; color: rgba(255,255,255,0.6); text-align: center; margin-top: 10px;">Firmware auto-controls suction in AUTO mode</div>
       </div>
 
       <!-- Auto Mode Panel -->
@@ -1386,6 +1387,28 @@
       document.querySelectorAll('.dpad-btn, .dpad-stop').forEach(btn => {
         btn.disabled = !isManualMode || !isConnected;
       });
+      
+      const suctionSlider = document.getElementById('suctionSlider');
+      const presetBtns = document.querySelectorAll('.preset-btn');
+      const warning = document.getElementById('autoSuctionWarning');
+      
+      if (!isManualMode) {
+        suctionSlider.style.opacity = '0.4';
+        suctionSlider.style.pointerEvents = 'none';
+        presetBtns.forEach(b => {
+          b.style.opacity = '0.4';
+          b.style.pointerEvents = 'none';
+        });
+        if(warning) warning.style.display = 'block';
+      } else {
+        suctionSlider.style.opacity = '1';
+        suctionSlider.style.pointerEvents = 'auto';
+        presetBtns.forEach(b => {
+          b.style.opacity = '1';
+          b.style.pointerEvents = 'auto';
+        });
+        if(warning) warning.style.display = 'none';
+      }
     }
 
     function updateOnlineStatus(online) {}

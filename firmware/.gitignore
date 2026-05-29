@@ -1,0 +1,5 @@
+# PlatformIO build cache — do not commit
+.pio/
+.vscode/
+.clang_complete
+.gcc-flags.json

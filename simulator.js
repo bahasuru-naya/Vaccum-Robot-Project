@@ -198,13 +198,25 @@ function startSimulation() {
       }
       
       client.publish(topics.statBattery, JSON.stringify(robotState.battery));
+      
+      if (robotState.mode === 'AUTO') {
+        robotState.suction = robotState.battery.percent > 70 ? VACUUM_TURBO_SPEED : VACUUM_ECO_SPEED;
+      }
     }
     
     // Simulate distance sensor
     if (simTick % 10 === 0) {
       const baseDistance = 150;
-      robotState.distance.cm = Math.round((baseDistance + Math.sin(simTick / 10) * 20) * 100) / 100;
-      robotState.distance.obstacle = robotState.distance.cm < 15;
+      let currentFront = Math.round((baseDistance + Math.sin(simTick / 10) * 20) * 100) / 100;
+      
+      // Simulate occasional obstacle dips
+      if (simTick % 200 > 180) currentFront = 8; // Dip below FRONT_STOP_CM (9)
+      
+      robotState.distance.front = currentFront;
+      robotState.distance.left = Math.round((70 + Math.sin(simTick / 15) * 30) * 100) / 100;
+      robotState.distance.right = Math.round((60 + Math.cos(simTick / 12) * 40) * 100) / 100;
+      robotState.distance.cm = currentFront;
+      robotState.distance.obstacle = currentFront < FRONT_STOP_CM;
       client.publish(topics.statDistance, JSON.stringify(robotState.distance));
     }
     
@@ -224,7 +236,8 @@ function startSimulation() {
 function simulateManualMovement() {
   // Simulate encoders in manual mode
   if (robotState.movement !== 'STOP') {
-    const pulseIncrement = 0.5;
+    const pulseIncrement = 0.5 * SPEED_RATIO;
+    const pivotIncrement = 0.5 * PIVOT_RATIO;
     
     switch (robotState.movement) {
       case 'FORWARD':
@@ -236,12 +249,12 @@ function simulateManualMovement() {
         rightPulses -= pulseIncrement;
         break;
       case 'LEFT':
-        leftPulses -= pulseIncrement * 0.5;
-        rightPulses += pulseIncrement * 0.5;
+        leftPulses -= pivotIncrement;
+        rightPulses += pivotIncrement;
         break;
       case 'RIGHT':
-        leftPulses += pulseIncrement * 0.5;
-        rightPulses -= pulseIncrement * 0.5;
+        leftPulses += pivotIncrement;
+        rightPulses -= pivotIncrement;
         break;
     }
     
@@ -274,19 +287,13 @@ function simulateAutoMode() {
   const WHEEL_DIAMETER_CM = 6.5;
   const dist_per_pulse = (Math.PI * WHEEL_DIAMETER_CM) / PULSES_PER_REV;
   
-  if (robotState.auto.state === 'AUTO_START_ROW') {
-    // Reset encoders and yaw
-    leftPulses = 0;
-    rightPulses = 0;
-    yawIntegration = 0;
-    robotState.auto.yaw = 0;
-    robotState.auto.state = 'AUTO_MOVING_FORWARD';
-    console.log(`   📍 Row ${robotState.auto.row}/${MAX_ROWS}: Moving forward...`);
+  if (robotState.auto.state === 'IDLE') {
+    robotState.auto.state = 'MOVING_FORWARD';
   }
   
-  if (robotState.auto.state === 'AUTO_MOVING_FORWARD') {
+  if (robotState.auto.state === 'MOVING_FORWARD') {
     // Simulate forward movement
-    const pulseIncrement = 0.3;
+    const pulseIncrement = 0.5 * SPEED_RATIO;
     leftPulses += pulseIncrement;
     rightPulses += pulseIncrement;
     
@@ -294,53 +301,72 @@ function simulateAutoMode() {
     robotState.auto.left_dist_cm = Math.round(leftPulses * dist_per_pulse * 10) / 10;
     robotState.auto.right_dist_cm = Math.round(rightPulses * dist_per_pulse * 10) / 10;
     
-    // Check if reached row length
-    if (avgDistance >= ROW_LENGTH_CM) {
-      robotState.auto.state = 'AUTO_TURN_90';
-      console.log(`   🔄 Reached end of row - turning 90°...`);
+    if (robotState.distance.obstacle) {
+      robotState.auto.state = 'OBSTACLE_AVOID';
+      console.log(`   ⚠️ Obstacle detected in AUTO mode!`);
+    } else if (avgDistance >= ROW_LENGTH_CM) {
+      robotState.auto.state = 'ROW_COMPLETE';
+      console.log(`   🔄 Reached end of row...`);
     }
-    
-    // Update coverage (simplified)
-    const rowCoverage = (avgDistance / ROW_LENGTH_CM) * 10;
-    const totalCoverage = ((robotState.auto.row - 1) * 10) + rowCoverage;
-    robotState.auto.coverage_pct = Math.min(Math.round(totalCoverage), 100);
   }
   
-  if (robotState.auto.state === 'AUTO_TURN_90') {
-    // Simulate 90 degree turn
-    yawIntegration += 2.25; // Accumulate 90 degrees over ~40 ticks
+  if (robotState.auto.state === 'OBSTACLE_AVOID') {
+    const leftClear = robotState.distance.left > SIDE_CLEAR_CM;
+    const rightClear = robotState.distance.right > SIDE_CLEAR_CM;
+    
+    let avoidTurnDir = 1;
+    if (leftClear && rightClear) {
+      avoidTurnDir = (robotState.distance.left >= robotState.distance.right) ? 1 : -1;
+    } else if (leftClear) {
+      avoidTurnDir = 1;
+    } else if (rightClear) {
+      avoidTurnDir = -1;
+    }
+    
+    // Simulate turning
+    yawIntegration += 2.25 * PIVOT_RATIO * avoidTurnDir;
+    robotState.auto.yaw = Math.round(yawIntegration * 10) / 10;
+    
+    if (Math.abs(robotState.auto.yaw) >= 88) {
+      robotState.auto.state = 'MOVING_FORWARD';
+      leftPulses = 0;
+      rightPulses = 0;
+      yawIntegration = 0;
+      robotState.auto.yaw = 0;
+      console.log(`   ↪️  Obstacle avoided, resuming forward...`);
+    }
+  }
+  
+  if (robotState.auto.state === 'ROW_COMPLETE') {
+    robotState.auto.state = 'TURNING';
+    console.log(`   🔄 Turning 90°...`);
+  }
+  
+  if (robotState.auto.state === 'TURNING') {
+    // Simulate turn and row shift
+    yawIntegration += 2.25 * PIVOT_RATIO;
     robotState.auto.yaw = Math.round(yawIntegration * 10) / 10;
     
     if (robotState.auto.yaw >= 88) {
-      robotState.auto.state = 'AUTO_MOVE_SIDEWAYS';
-      yawIntegration = 0;
-      leftPulses = 0;
-      rightPulses = 0;
-      console.log(`   ↔️  Moved sideways between rows...`);
-    }
-  }
-  
-  if (robotState.auto.state === 'AUTO_MOVE_SIDEWAYS') {
-    // Move sideways ROW_WIDTH_CM
-    const pulseIncrement = 0.2;
-    leftPulses += pulseIncrement;
-    rightPulses += pulseIncrement;
-    
-    const avgDistance = ((leftPulses + rightPulses) / 2.0) * dist_per_pulse;
-    
-    if (avgDistance >= ROW_WIDTH_CM) {
       robotState.auto.row++;
       if (robotState.auto.row > MAX_ROWS) {
-        robotState.auto.state = 'AUTO_COMPLETE';
-        console.log(`   ✅ Cleaning complete! Coverage: ${robotState.auto.coverage_pct}%`);
+        robotState.auto.state = 'COMPLETE';
+        console.log(`   ✅ Cleaning complete!`);
       } else {
-        robotState.auto.state = 'AUTO_START_ROW';
+        robotState.auto.state = 'MOVING_FORWARD';
+        yawIntegration = 0;
+        robotState.auto.yaw = 0;
+        leftPulses = 0;
+        rightPulses = 0;
+        console.log(`   📍 Starting Row ${robotState.auto.row}/${MAX_ROWS}`);
       }
     }
   }
   
-  if (robotState.auto.state === 'AUTO_COMPLETE') {
+  if (robotState.auto.state === 'COMPLETE') {
     robotState.auto.coverage_pct = 100;
+  } else {
+    robotState.auto.coverage_pct = Math.round((robotState.auto.row / MAX_ROWS) * 100);
   }
   
   // Publish auto status every tick
