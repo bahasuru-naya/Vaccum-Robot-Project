@@ -6,11 +6,11 @@ export const MqttContext = createContext(null);
 export const useMqtt = () => useContext(MqttContext);
 
 const CONFIG = {
-  host: import.meta.env.VITE_MQTT_HOST || '0808028e417c4ff2957842f563dafe7b.s1.eu.hivemq.cloud',
-  port: import.meta.env.VITE_MQTT_PORT || 8884,
-  username: import.meta.env.VITE_MQTT_USERNAME || 'VaccumRobot',
-  password: import.meta.env.VITE_MQTT_PASSWORD || 'Vaccum@12345',
-  topicPrefix: import.meta.env.VITE_MQTT_TOPIC_PREFIX || 'vacbot'
+  host: process.env.REACT_APP_MQTT_HOST || '0808028e417c4ff2957842f563dafe7b.s1.eu.hivemq.cloud',
+  port: process.env.REACT_APP_MQTT_PORT || 8884,
+  username: process.env.REACT_APP_MQTT_USERNAME || 'VaccumRobot',
+  password: process.env.REACT_APP_MQTT_PASSWORD || 'Vaccum@12345',
+  topicPrefix: process.env.REACT_APP_MQTT_TOPIC_PREFIX || 'vacbot'
 };
 
 export const MqttProvider = ({ children }) => {
