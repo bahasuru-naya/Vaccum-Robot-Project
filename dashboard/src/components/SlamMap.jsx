@@ -105,9 +105,13 @@ const SlamMap = () => {
 
     const ctx = canvas.getContext('2d');
     const { w, h } = dimensions;
-    canvas.width = w * window.devicePixelRatio;
-    canvas.height = h * window.devicePixelRatio;
-    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    const dpr = window.devicePixelRatio;
+
+    if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.scale(dpr, dpr);
+    }
 
     const centerX = w / 2;
     const centerY = h / 2;

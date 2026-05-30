@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Orbitron:wght@400;500;600;700;900&family=Rajdhani:wght@400;500;600;700&display=swap');
 @import './styles/Colors.css';
 @import './styles/Animations.css';
 
@@ -23,21 +22,6 @@ body {
   font-family: 'Inter', -apple-system, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
-}
-
-/* Layout CSS Variables */
-:root {
-  --layout-padding: 12px;
-  --layout-gap: 12px;
-  --gap-sm: 8px;
-  --gap-md: 12px;
-  --gap-lg: 16px;
-  --module-padding: 16px;
-  --module-radius: 16px;
-  --top-bar-height: 70px;
-  --bottom-dock-height: 50px;
-  --sidebar-width: 260px;
-  --right-panel-width: 320px;
 }
 
 /* ── Layered Background ── */
@@ -510,13 +494,26 @@ body {
 
 .vacuum-slider {
   flex: 1;
+  width: 100%;
   -webkit-appearance: none;
   appearance: none;
   height: 8px;
-  background: rgba(0, 0, 0, 0.4);
+  background: linear-gradient(to right, rgba(0,255,255,0.1), rgba(0,255,255,0.2));
   border-radius: 4px;
   outline: none;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(0,255,255,0.2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.vacuum-slider:hover:not(:disabled) {
+  border-color: rgba(0,255,255,0.4);
+  box-shadow: 0 0 8px rgba(0,255,255,0.15);
+}
+
+.vacuum-slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .vacuum-slider::-webkit-slider-thumb {
@@ -763,6 +760,7 @@ body {
 .arrow-nav-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: 1fr 1fr;
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -811,6 +809,7 @@ body {
 
 .arrow-btn.up {
   grid-column: 2;
+  grid-row: 1;
 }
 
 .arrow-btn.left {
@@ -846,27 +845,6 @@ body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-}
-
-.vacuum-slider {
-  appearance: none;
-  width: 100%;
-  background: linear-gradient(to right, rgba(0,255,255,0.1), rgba(0,255,255,0.2));
-  outline: none;
-  border-radius: 4px;
-  border: 1px solid rgba(0,255,255,0.2);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.vacuum-slider:hover:not(:disabled) {
-  border-color: rgba(0,255,255,0.4);
-  box-shadow: 0 0 8px rgba(0,255,255,0.15);
-}
-
-.vacuum-slider:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* ── Joystick ── */
