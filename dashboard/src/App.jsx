@@ -12,6 +12,26 @@ import MissionPanel from './components/MissionPanel';
 import RadarModule from './components/RadarModule';
 import AiDecisions from './components/AiDecisions';
 
+// Debug component to show viewport info
+const DebugInfo = ({ width, layout }) => (
+  <div style={{
+    position: 'fixed',
+    bottom: 65,
+    right: 10,
+    background: 'rgba(0, 200, 255, 0.8)',
+    color: 'black',
+    padding: '8px 12px',
+    fontSize: '10px',
+    zIndex: 9999,
+    pointerEvents: 'none',
+    borderRadius: '4px',
+    fontFamily: 'monospace',
+    fontWeight: 'bold'
+  }}>
+    W: {width}px | {layout.toUpperCase()}
+  </div>
+);
+
 const DesktopLayout = () => (
   <div className="app-container">
     <div className="app-bg" />
@@ -117,13 +137,22 @@ const TabletLayout = () => (
 
 const AppContent = () => {
   const [layout, setLayout] = React.useState('desktop');
+  const [width, setWidth] = React.useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
 
   React.useEffect(() => {
     const checkLayout = () => {
       const w = window.innerWidth;
-      if (w < 768) setLayout('mobile');
-      else if (w < 1200) setLayout('tablet');
-      else setLayout('desktop');
+      let newLayout = 'desktop';
+      
+      if (w < 768) {
+        newLayout = 'mobile';
+      } else if (w < 1200) {
+        newLayout = 'tablet';
+      }
+      
+      console.log(`[VacBot] Window width: ${w}px → Layout: ${newLayout}`);
+      setWidth(w);
+      setLayout(newLayout);
     };
 
     checkLayout();
@@ -131,9 +160,16 @@ const AppContent = () => {
     return () => window.removeEventListener('resize', checkLayout);
   }, []);
 
-  if (layout === 'mobile') return <MobileLayout />;
-  if (layout === 'tablet') return <TabletLayout />;
-  return <DesktopLayout />;
+  console.log(`[VacBot] Rendering: ${layout} layout`);
+
+  return (
+    <>
+      <DebugInfo width={width} layout={layout} />
+      {layout === 'mobile' && <MobileLayout />}
+      {layout === 'tablet' && <TabletLayout />}
+      {layout === 'desktop' && <DesktopLayout />}
+    </>
+  );
 };
 
 function App() {

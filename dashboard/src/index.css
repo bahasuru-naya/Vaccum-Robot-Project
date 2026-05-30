@@ -1532,6 +1532,8 @@ body {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: var(--gap-md);
     overflow: visible;
+    width: 100%;
+    min-height: 150px;
   }
 
   .right-panel {
@@ -1540,6 +1542,8 @@ body {
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: var(--gap-md);
     overflow: visible;
+    width: 100%;
+    min-height: 200px;
   }
 
   .center-panel {
